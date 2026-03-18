@@ -5298,11 +5298,19 @@ const COLOR_KW = {
 
 function detectColor(text) {
   const t = text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  // Color priority order - more specific colors win
+  const PRIORITY = ['PT','BR','BZ','CR','DO','RS','NT','FP','IN','CZ','GR','FO'];
+  let found = null;
   for (const [kw,suf] of Object.entries(COLOR_KW)) {
     const kwn = kw.normalize('NFD').replace(/[\u0300-\u036f]/g,'');
-    if (t.includes(kwn)) return suf;
+    if (t.includes(kwn)) {
+      // If no color found yet, or new color has higher priority
+      if (!found || PRIORITY.indexOf(suf) < PRIORITY.indexOf(found)) {
+        found = suf;
+      }
+    }
   }
-  return null;
+  return found;
 }
 
 // ── Color menu ────────────────────────────────────────────────────────────────
@@ -5339,6 +5347,8 @@ function preFilter(query) {
         const suEq='su'+wc.slice(2);
         if(codeClean===suEq||codeClean.startsWith(suEq)) s+=45;
       }
+      // Numeric partial match: "797" matches "SU797PT", "AL797" etc.
+      else if(/^\d+$/.test(wc) && codeClean.includes(wc)) s+=60;
       // Base code with optional L suffix (VZ060 matches VZ060L)
       else if(codeClean.startsWith(wc+'l')||codeClean.startsWith(wc)) s+=20;
       else if(wc.length>=4&&codeClean.startsWith(wc.slice(0,4))) s+=10;
@@ -5470,6 +5480,10 @@ ${colorInfo}
 CODIGOS BASE: Clientes usam VZ024, MP347, VT002 etc. No catalogo aparecem com sufixo de cor: VZ024BR, VZ024BZ...
 Se pedirem VZ024 retorne codigo VZ024 (sem sufixo). Se pedirem VT002 retorne SU002.
 Se codigo base estiver no catalogo com sufixos, o produto EXISTE.
+
+NUMEROS NO PEDIDO: Se o cliente mencionar numeros como "797", "798", "25016" — sao partes de codigos de produto. Busque produtos que contenham esses numeros no codigo (ex: "797" = SU797, VT797). Esses numeros tem PRIORIDADE sobre palavras genericas como "perfil".
+
+CORES: Se o cliente mencionar mais de uma cor (ex: "preto fosco"), use a cor mais especifica. "Preto" (PT) tem prioridade sobre "Fosco" (FO). "Fosco" sozinho significa acabamento fosco (FO).
 
 BUSCA AMPLA: Quando o cliente pedir por CATEGORIA (ex: "kit porta correr", "puxador 45x30", "veneziana", "roldana"):
 - Retorne TODAS as opcoes disponiveis no catalogo para essa categoria
